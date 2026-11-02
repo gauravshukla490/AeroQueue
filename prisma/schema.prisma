@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailJobStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+}
+
+model Sender {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String?
+  hourlyQuota  Int        @default(200)
+  minDelayMs   Int        @default(2000)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  campaigns    Campaign[]
+  emailJobs    EmailJob[]
+
+  @@map("senders")
+}
+
+model Campaign {
+  id          String         @id @default(uuid())
+  name        String
+  senderId    String
+  sender      Sender         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  status      CampaignStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  emailJobs   EmailJob[]
+
+  @@map("campaigns")
+}
+
+model EmailJob {
+  id             String         @id @default(uuid())
+  campaignId     String?
+  campaign       Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  senderId       String
+  sender         Sender         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  recipient      String
+  subject        String
+  body           String         @db.Text
+  status         EmailJobStatus @default(PENDING)
+  scheduledAt    DateTime       @default(now())
+  sentAt         DateTime?
+  leaseExpiresAt DateTime?
+  workerId       String?
+  attempts       Int            @default(0)
+  maxAttempts    Int            @default(3)
+  lastError      String?        @db.Text
+  idempotencyKey String?        @unique
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  deliveryLogs   DeliveryLog[]
+
+  @@index([status, scheduledAt])
+  @@index([senderId, status])
+  @@index([leaseExpiresAt])
+  @@index([workerId])
+  @@map("email_jobs")
+}
+
+model DeliveryLog {
+  id              String         @id @default(uuid())
+  emailJobId      String
+  emailJob        EmailJob       @relation(fields: [emailJobId], references: [id], onDelete: Cascade)
+  status          EmailJobStatus
+  responsePayload Json?
+  errorMessage    String?        @db.Text
+  createdAt       DateTime       @default(now())
+
+  @@index([emailJobId])
+  @@map("delivery_logs")
+}

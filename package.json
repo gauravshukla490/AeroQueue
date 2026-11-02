@@ -1,0 +1,53 @@
+{
+  "name": "reach-inbox",
+  "version": "1.0.0",
+  "description": "Distributed, fault-tolerant email dispatch engine with BullMQ, PostgreSQL, Redis, and Elasticsearch",
+  "main": "dist/api/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/api/server.js",
+    "dev:api": "tsx watch src/api/server.ts",
+    "dev:worker": "tsx watch src/queue/worker.ts",
+    "dev:recovery": "tsx src/services/recovery.service.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "test:rate-limit": "tsx src/scripts/test-rate-limit.ts",
+    "test:crash-recovery": "tsx src/scripts/test-crash-recovery.ts",
+    "seed": "tsx src/scripts/seed.ts"
+  },
+  "keywords": [
+    "email-scheduler",
+    "bullmq",
+    "redis",
+    "postgresql",
+    "rate-limiting",
+    "distributed-systems",
+    "idempotency"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@elastic/elasticsearch": "^8.17.0",
+    "@prisma/client": "^5.22.0",
+    "bullmq": "^5.41.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.5.0",
+    "nodemailer": "^6.10.0",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.4",
+    "@types/nodemailer": "^6.4.17",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

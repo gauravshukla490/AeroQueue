@@ -1,0 +1,27 @@
+:80 {
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+
+    # API Proxy
+    handle /api/* {
+        reverse_proxy localhost:3000
+    }
+
+    # MailHog Web Dashboard
+    handle_path /mailhog/* {
+        reverse_proxy localhost:8025
+    }
+
+    # Elasticsearch proxy (read-only search endpoints)
+    handle /search/* {
+        reverse_proxy localhost:9200
+    }
+
+    # Default fallback / root status
+    handle {
+        respond "ReachInbox / Hermes Distributed Outbound Email Engine is online" 200
+    }
+}

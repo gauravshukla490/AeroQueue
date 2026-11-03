@@ -55,7 +55,7 @@ export class SchedulerService {
 
     const scheduledAt = rawScheduledAt ? new Date(rawScheduledAt) : new Date();
 
-    // 3. Atomically persist state in PostgreSQL
+    // 3. Atomically persist state in PostgreSQL as QUEUED
     const emailJob = await prisma.emailJob.create({
       data: {
         senderId,
@@ -65,8 +65,9 @@ export class SchedulerService {
         campaignId,
         idempotencyKey,
         scheduledAt,
-        status: EmailJobStatus.PENDING,
+        status: EmailJobStatus.QUEUED,
       },
+      include: { sender: true },
     });
 
     // 4. Enqueue into BullMQ with calculated delay
@@ -83,14 +84,7 @@ export class SchedulerService {
       scheduledAt
     );
 
-    // 5. Update DB status to QUEUED
-    const updated = await prisma.emailJob.update({
-      where: { id: emailJob.id },
-      data: { status: EmailJobStatus.QUEUED },
-      include: { sender: true },
-    });
-
-    return { job: updated, bullJobId, isDuplicate: false };
+    return { job: emailJob, bullJobId, isDuplicate: false };
   }
 
   /**

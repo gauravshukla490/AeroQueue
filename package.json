@@ -1,5 +1,5 @@
 {
-  "name": "reach-inbox",
+  "name": "AeroQueue",
   "version": "1.0.0",
   "description": "Distributed, fault-tolerant email dispatch engine with BullMQ, PostgreSQL, Redis, and Elasticsearch",
   "main": "dist/api/server.js",

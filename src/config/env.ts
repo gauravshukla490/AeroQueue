@@ -16,7 +16,12 @@ const envSchema = z.object({
 
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().default(1025),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_SECURE: z
+    .preprocess((val) => {
+      if (typeof val === 'string') return val.toLowerCase() === 'true' || val === '1';
+      return Boolean(val);
+    }, z.boolean())
+    .default(false),
   SMTP_USER: z.string().optional().default(''),
   SMTP_PASS: z.string().optional().default(''),
   SMTP_FROM: z.string().default('ReachInbox <no-reply@reachinbox.local>'),

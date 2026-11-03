@@ -20,57 +20,67 @@ export async function processEmailJob(job: Job<EmailJobPayload>) {
   log.info({ recipient }, 'Worker picked up job');
 
   // 1. Transactional Row Lock and Send Lease Acquisition
-  const acquiredJob = await prisma.$transaction(async (tx) => {
-    // Acquire row-level lock using raw query with FOR UPDATE SKIP LOCKED
-    const rows = await tx.$queryRaw<
-      Array<{
-        id: string;
-        status: EmailJobStatus;
-        attempts: number;
-        max_attempts: number;
-        lease_expires_at: Date | null;
-      }>
-    >`
-      SELECT id, status, attempts, "maxAttempts" as max_attempts, "leaseExpiresAt" as lease_expires_at
-      FROM email_jobs
-      WHERE id = ${emailJobId}
-      FOR UPDATE SKIP LOCKED
-    `;
+  const acquiredJob = await prisma.$transaction(
+    async (tx) => {
+      // Acquire row-level lock using raw query with FOR UPDATE SKIP LOCKED
+      const rows = await tx.$queryRaw<
+        Array<{
+          id: string;
+          status: EmailJobStatus;
+          attempts: number;
+          max_attempts: number;
+          lease_expires_at: Date | null;
+        }>
+      >`
+        SELECT id, status, attempts, "maxAttempts" as max_attempts, "leaseExpiresAt" as lease_expires_at
+        FROM email_jobs
+        WHERE id = ${emailJobId}
+        FOR UPDATE SKIP LOCKED
+      `;
 
-    if (!rows || rows.length === 0) {
-      log.warn('Could not acquire lock on email_job row (may already be in process or deleted)');
-      return null;
+      if (!rows || rows.length === 0) {
+        log.warn('Could not acquire lock on email_job row (temporarily locked or being processed)');
+        return 'LOCK_FAILED';
+      }
+
+      const currentRecord = rows[0];
+
+      // Idempotency check: if already completed, do not send again
+      if (currentRecord.status === EmailJobStatus.SENT) {
+        log.info('Job is already marked SENT. Skipping delivery to preserve idempotency.');
+        return 'ALREADY_SENT';
+      }
+
+      if (currentRecord.status === EmailJobStatus.CANCELLED) {
+        log.info('Job is marked CANCELLED. Skipping delivery.');
+        return 'CANCELLED';
+      }
+
+      // Set 60-second send lease
+      const leaseExpiresAt = new Date(Date.now() + env.LEASE_DURATION_SECONDS * 1000);
+
+      const updated = await tx.emailJob.update({
+        where: { id: emailJobId },
+        data: {
+          status: EmailJobStatus.PROCESSING,
+          workerId: workerInstanceId,
+          leaseExpiresAt,
+          attempts: { increment: 1 },
+        },
+        include: { sender: true },
+      });
+
+      return updated;
+    },
+    {
+      maxWait: 15000,
+      timeout: 30000, // 30s timeout for remote cloud databases (Neon)
     }
+  );
 
-    const currentRecord = rows[0];
-
-    // Idempotency check: if already completed, do not send again
-    if (currentRecord.status === EmailJobStatus.SENT) {
-      log.info('Job is already marked SENT. Skipping delivery to preserve idempotency.');
-      return 'ALREADY_SENT';
-    }
-
-    if (currentRecord.status === EmailJobStatus.CANCELLED) {
-      log.info('Job is marked CANCELLED. Skipping delivery.');
-      return 'CANCELLED';
-    }
-
-    // Set 60-second send lease
-    const leaseExpiresAt = new Date(Date.now() + env.LEASE_DURATION_SECONDS * 1000);
-
-    const updated = await tx.emailJob.update({
-      where: { id: emailJobId },
-      data: {
-        status: EmailJobStatus.PROCESSING,
-        workerId: workerInstanceId,
-        leaseExpiresAt,
-        attempts: { increment: 1 },
-      },
-      include: { sender: true },
-    });
-
-    return updated;
-  });
+  if (acquiredJob === 'LOCK_FAILED') {
+    throw new Error(`Transient lock conflict for job ${emailJobId}, requeuing via BullMQ backoff`);
+  }
 
   if (!acquiredJob || acquiredJob === 'ALREADY_SENT' || acquiredJob === 'CANCELLED') {
     return;

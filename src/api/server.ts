@@ -22,7 +22,7 @@ app.use(
 );
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.resolve('client','dist')));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -47,7 +47,7 @@ app.use('/api/metrics', metricsRouter);
 
 // Serve Bento Grid UI Dashboard on root
 app.get('/', (req, res) => {
-  res.sendFile(path.resolve('public/index.html'));
+  res.sendFile(path.resolve('client','dist','index.html'));
 });
 
 // Error Handler

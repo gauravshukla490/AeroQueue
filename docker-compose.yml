@@ -1,5 +1,23 @@
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aeroqueue_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: aeroqueue
+      POSTGRES_PASSWORD: aeroqueue
+      POSTGRES_DB: aeroqueue
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeroqueue -d aeroqueue"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     container_name: aeroqueue_redis
@@ -103,5 +121,6 @@ services:
         condition: service_started
 
 volumes:
+  postgres_data:
   redis_data:
   elasticsearch_data:

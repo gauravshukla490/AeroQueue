@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroQueue — Distributed Outbound Email Engine | Bento Grid Dashboard</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              black: '#07090E',
+              card: '#0D111A',
+              cardHover: '#111726',
+              border: 'rgba(59, 130, 246, 0.18)',
+              borderHover: 'rgba(96, 165, 250, 0.4)',
+              blue: '#2563EB',
+              blueLight: '#3B82F6',
+              blueNeon: '#60A5FA',
+              cyan: '#38BDF8',
+              white: '#FFFFFF',
+              slate: '#94A3B8',
+              muted: '#64748B'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #07090E;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(37, 99, 235, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.08) 0%, transparent 40%);
+      background-attachment: fixed;
+      color: #FFFFFF;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Bento Card Glassmorphism */
+    .bento-card {
+      background: rgba(13, 17, 26, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(59, 130, 246, 0.18);
+      border-radius: 1rem;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .bento-card:hover {
+      border-color: rgba(96, 165, 250, 0.45);
+      box-shadow: 0 8px 32px -4px rgba(37, 99, 235, 0.18);
+    }
+
+    /* Glow lines */
+    .bento-glow-top {
+      position: absolute;
+      top: 0;
+      left: 15%;
+      right: 15%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.6), transparent);
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #07090E;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1E293B;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3B82F6;
+    }
+
+    /* Pulse animation */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.8; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); filter: drop-shadow(0 0 8px #3B82F6); }
+    }
+    .pulse-glow {
+      animation: pulseGlow 2.5s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-blue-600 selection:text-white">
+
+  <!-- TOP NAVIGATION HEADER -->
+  <header class="border-b border-brand-border/60 bg-brand-black/70 backdrop-blur-md sticky top-0 z-50 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      
+      <!-- Brand & Badges -->
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-600/30 font-extrabold text-xl tracking-wider text-white">
+          ⚡
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              AeroQueue <span class="text-blue-500 font-mono text-xs px-2 py-0.5 rounded-full bg-blue-950/70 border border-blue-800">v1.0</span>
+            </h1>
+          </div>
+          <p class="text-xs text-brand-slate font-medium">Distributed Asynchronous Email Dispatch Engine</p>
+        </div>
+      </div>
+
+      <!-- Infrastructure Status Pills -->
+      <div class="hidden md:flex items-center gap-3">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-950/40 border border-blue-900/60 text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="text-slate-300 font-medium">NeonDB: <strong class="text-white">Connected</strong></span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-950/40 border border-blue-900/60 text-xs">
+          <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+          <span class="text-slate-300 font-medium">BullMQ: <strong class="text-white">5 Workers</strong></span>
+        </div>
+        <a href="http://localhost:8025" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 hover:text-white transition text-xs font-semibold">
+          <span>MailHog Inbox</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+        </a>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center gap-3">
+        <button id="refreshBtn" onclick="fetchDashboardData()" class="px-3.5 py-1.5 rounded-lg bg-brand-card hover:bg-brand-cardHover border border-brand-border text-xs font-medium text-slate-200 hover:text-white transition flex items-center gap-1.5">
+          <svg id="refreshIcon" class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>Refresh</span>
+        </button>
+        <div class="flex items-center gap-2 pl-2 border-l border-brand-border/60">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+          </span>
+          <span class="text-xs font-mono text-slate-400" id="liveClock">LIVE</span>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN BENTO CONTAINER -->
+  <main class="max-w-7xl mx-auto px-6 py-8 w-full flex-grow">
+    
+    <!-- ROW 1: 4 BENTO METRIC STAT TILES -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      
+      <!-- Metric 1: Total Delivered -->
+      <div class="bento-card p-5">
+        <div class="bento-glow-top"></div>
+        <div class="flex items-center justify-between text-brand-slate text-xs font-semibold mb-2 uppercase tracking-wider">
+          <span>Delivered</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">100% Success</span>
+        </div>
+        <div class="text-3xl font-extrabold text-white font-mono tracking-tight" id="statSent">0</div>
+        <div class="text-xs text-brand-slate mt-2 flex items-center gap-1">
+          <span class="text-blue-400">●</span> Dispatched via SMTP
+        </div>
+      </div>
+
+      <!-- Metric 2: Queued in BullMQ -->
+      <div class="bento-card p-5">
+        <div class="bento-glow-top"></div>
+        <div class="flex items-center justify-between text-brand-slate text-xs font-semibold mb-2 uppercase tracking-wider">
+          <span>Queued</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">BullMQ ZSET</span>
+        </div>
+        <div class="text-3xl font-extrabold text-white font-mono tracking-tight" id="statQueued">0</div>
+        <div class="text-xs text-brand-slate mt-2 flex items-center gap-1">
+          <span class="text-cyan-400">⏱</span> Delayed or waiting in memory
+        </div>
+      </div>
+
+      <!-- Metric 3: Active Leases / Processing -->
+      <div class="bento-card p-5">
+        <div class="bento-glow-top"></div>
+        <div class="flex items-center justify-between text-brand-slate text-xs font-semibold mb-2 uppercase tracking-wider">
+          <span>Processing</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">60s Lease</span>
+        </div>
+        <div class="text-3xl font-extrabold text-white font-mono tracking-tight" id="statProcessing">0</div>
+        <div class="text-xs text-brand-slate mt-2 flex items-center gap-1">
+          <span class="text-amber-400">⚡</span> Heartbeat locked in worker
+        </div>
+      </div>
+
+      <!-- Metric 4: Failed / DLQ -->
+      <div class="bento-card p-5">
+        <div class="bento-glow-top"></div>
+        <div class="flex items-center justify-between text-brand-slate text-xs font-semibold mb-2 uppercase tracking-wider">
+          <span>Dead Letter</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 font-mono">DLQ</span>
+        </div>
+        <div class="text-3xl font-extrabold text-white font-mono tracking-tight" id="statFailed">0</div>
+        <div class="text-xs text-brand-slate mt-2 flex items-center gap-1">
+          <span class="text-red-400">✖</span> Max retries exceeded
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ROW 2: MAIN WORKHORSE BENTO GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- LEFT: DISPATCH CONSOLE (5 Columns) -->
+      <div class="lg:col-span-5 flex flex-col gap-6">
+        
+        <!-- BENTO CARD: DISPATCH FORM -->
+        <div class="bento-card p-6 flex-grow flex flex-col justify-between">
+          <div class="bento-glow-top"></div>
+          <div>
+            <div class="flex items-center justify-between pb-4 border-b border-brand-border/40 mb-5">
+              <div>
+                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                  <span class="text-blue-500 font-mono">01.</span> Ingestion Dispatcher
+                </h2>
+                <p class="text-xs text-brand-slate mt-0.5">Asynchronous, decoupled payload schedule</p>
+              </div>
+              <span class="text-[11px] px-2.5 py-1 rounded-md bg-blue-900/30 text-blue-300 font-mono border border-blue-800/40">POST /api/emails</span>
+            </div>
+
+            <form id="dispatchForm" onsubmit="handleDispatch(event)" class="space-y-4">
+              <!-- Sender Selection -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Sender Identity</label>
+                <select id="senderSelect" required class="w-full bg-brand-black/90 border border-brand-border rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition font-mono">
+                  <option value="" disabled selected>Loading registered senders...</option>
+                </select>
+              </div>
+
+              <!-- Recipient -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Recipient Email</label>
+                <input type="email" id="recipientInput" required placeholder="investor@acme.corp" class="w-full bg-brand-black/90 border border-brand-border rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition font-mono">
+              </div>
+
+              <!-- Subject -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Subject</label>
+                <input type="text" id="subjectInput" required placeholder="Q4 Scaled Throughput Report" class="w-full bg-brand-black/90 border border-brand-border rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition">
+              </div>
+
+              <!-- HTML Body -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">HTML Body Content</label>
+                <textarea id="bodyInput" required rows="3" placeholder="<h1>Hello</h1><p>Dispatched via AeroQueue engine.</p>" class="w-full bg-brand-black/90 border border-brand-border rounded-lg p-3 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition font-mono"></textarea>
+              </div>
+
+              <!-- Delay Options -->
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Execution Timing</label>
+                  <select id="delaySelect" class="w-full bg-brand-black/90 border border-brand-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition font-mono">
+                    <option value="0">Immediate Dispatch (0s)</option>
+                    <option value="5">Delayed (5 seconds)</option>
+                    <option value="15">Delayed (15 seconds)</option>
+                    <option value="60">Delayed (1 minute)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1.5">Idempotency Key</label>
+                  <input type="text" id="idempotencyInput" placeholder="auto-generated" class="w-full bg-brand-black/90 border border-brand-border rounded-lg px-3 py-2 text-xs text-slate-400 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition font-mono">
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <button type="submit" id="submitBtn" class="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-xs transition duration-200 shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2">
+                <span id="btnText">Schedule via BullMQ</span>
+                <svg id="btnSpinner" class="hidden animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+              </button>
+            </form>
+          </div>
+
+          <!-- Quick Feedback Toast -->
+          <div id="toastBox" class="hidden mt-4 p-3 rounded-lg border text-xs font-mono transition-all"></div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT: METRICS, ACTIVITY STREAM & SEARCH (7 Columns) -->
+      <div class="lg:col-span-7 flex flex-col gap-6">
+
+        <!-- BENTO CARD: RATE LIMITER & CONCURRENCY GAUGE -->
+        <div class="bento-card p-6">
+          <div class="bento-glow-top"></div>
+          <div class="flex items-center justify-between pb-3 border-b border-brand-border/40 mb-4">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <span class="text-blue-500 font-mono">02.</span> Sliding-Window Rate Limiter
+              </h2>
+              <p class="text-xs text-brand-slate">Redis Lua atomic sliding window (3600s trailing)</p>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-mono text-cyan-400 font-bold" id="quotaUsageText">0 / 200</span>
+              <p class="text-[10px] text-brand-slate">emails/hour limit</p>
+            </div>
+          </div>
+
+          <!-- Progress Bar -->
+          <div class="w-full bg-blue-950/40 rounded-full h-3 p-0.5 border border-blue-900/40 mb-3 overflow-hidden">
+            <div id="quotaBar" class="bg-gradient-to-r from-blue-600 to-cyan-400 h-full rounded-full transition-all duration-500" style="width: 5%;"></div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 pt-2 text-xs font-mono">
+            <div class="bg-brand-black/60 p-2.5 rounded-lg border border-brand-border/40">
+              <div class="text-[10px] text-brand-slate uppercase">Inter-Send Delay</div>
+              <div class="text-sm font-bold text-white mt-0.5 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> 2.0s Pacing
+              </div>
+            </div>
+            <div class="bg-brand-black/60 p-2.5 rounded-lg border border-brand-border/40">
+              <div class="text-[10px] text-brand-slate uppercase">Concurrent Workers</div>
+              <div class="text-sm font-bold text-white mt-0.5 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-400"></span> 5 Workers
+              </div>
+            </div>
+            <div class="bg-brand-black/60 p-2.5 rounded-lg border border-brand-border/40">
+              <div class="text-[10px] text-brand-slate uppercase">Send Lease</div>
+              <div class="text-sm font-bold text-white mt-0.5 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span> 60s Heartbeat
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BENTO CARD: LIVE ACTIVITY LOG STREAM -->
+        <div class="bento-card p-6 flex-grow flex flex-col">
+          <div class="bento-glow-top"></div>
+          <div class="flex items-center justify-between pb-3 border-b border-brand-border/40 mb-4">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <span class="text-blue-500 font-mono">03.</span> Live Execution Feed
+              </h2>
+              <p class="text-xs text-brand-slate">Real-time state transitions and delivery audit logs</p>
+            </div>
+            <span class="text-[10px] font-mono text-slate-400 bg-brand-black/80 px-2.5 py-1 rounded border border-brand-border">Auto-Updates (3s)</span>
+          </div>
+
+          <!-- Feed Container -->
+          <div class="overflow-y-auto max-h-[320px] pr-2 space-y-2.5" id="activityFeed">
+            <div class="text-center py-10 text-xs text-brand-slate font-mono">
+              Fetching outbound records...
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ROW 3: ELASTICSEARCH FULL-TEXT SEARCH & INFRASTRUCTURE BENTO CARDS -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
+      
+      <!-- BENTO CARD: ELASTICSEARCH SEARCH (6 Columns) -->
+      <div class="lg:col-span-6 bento-card p-6">
+        <div class="bento-glow-top"></div>
+        <div class="flex items-center justify-between pb-3 border-b border-brand-border/40 mb-4">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="text-blue-500 font-mono">04.</span> Elasticsearch 8 Search
+            </h2>
+            <p class="text-xs text-brand-slate">Sub-50ms inverted index search across subjects & bodies</p>
+          </div>
+          <span class="text-[10px] font-mono text-cyan-400 bg-cyan-950/30 px-2.5 py-1 rounded border border-cyan-800/40">GET /api/search</span>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative mb-4">
+          <input type="text" id="searchInput" oninput="handleSearch(this.value)" placeholder="Search keywords: 'welcome', 'neon', 'startup'..." class="w-full bg-brand-black/90 border border-brand-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 transition font-mono">
+          <svg class="w-4 h-4 text-blue-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+
+        <!-- Search Results List -->
+        <div id="searchResults" class="overflow-y-auto max-h-[160px] space-y-2 text-xs font-mono pr-1">
+          <div class="text-slate-500 text-center py-6">Type a keyword to query Elasticsearch index in real-time</div>
+        </div>
+      </div>
+
+      <!-- BENTO CARD: CLOUD ARCHITECTURE & SELF-HEALING SPECS (6 Columns) -->
+      <div class="lg:col-span-6 bento-card p-6">
+        <div class="bento-glow-top"></div>
+        <div class="flex items-center justify-between pb-3 border-b border-brand-border/40 mb-4">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <span class="text-blue-500 font-mono">05.</span> Engine Architecture & Recovery
+            </h2>
+            <p class="text-xs text-brand-slate">Distributed state machine parameters</p>
+          </div>
+          <span class="text-[10px] font-mono text-emerald-400 bg-emerald-950/30 px-2 py-0.5 rounded border border-emerald-800/40">Self-Healing Active</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="bg-brand-black/70 p-3 rounded-xl border border-brand-border/50">
+            <span class="text-[10px] text-brand-slate font-mono uppercase block mb-1">State Machine</span>
+            <div class="text-white font-medium text-xs">PostgreSQL Row Locks</div>
+            <div class="text-[11px] text-slate-400 font-mono mt-1">FOR UPDATE SKIP LOCKED</div>
+          </div>
+          <div class="bg-brand-black/70 p-3 rounded-xl border border-brand-border/50">
+            <span class="text-[10px] text-brand-slate font-mono uppercase block mb-1">Crash Recovery</span>
+            <div class="text-white font-medium text-xs">Startup & 30s Reconciler</div>
+            <div class="text-[11px] text-slate-400 font-mono mt-1">Orphan lease healing</div>
+          </div>
+          <div class="bg-brand-black/70 p-3 rounded-xl border border-brand-border/50">
+            <span class="text-[10px] text-brand-slate font-mono uppercase block mb-1">Queue Ingestion</span>
+            <div class="text-white font-medium text-xs">BullMQ Priority Queue</div>
+            <div class="text-[11px] text-slate-400 font-mono mt-1">Redis AOF Durability</div>
+          </div>
+          <div class="bg-brand-black/70 p-3 rounded-xl border border-brand-border/50">
+            <span class="text-[10px] text-brand-slate font-mono uppercase block mb-1">Idempotency Guard</span>
+            <div class="text-white font-medium text-xs">Compound Constraints</div>
+            <div class="text-[11px] text-slate-400 font-mono mt-1">Zero duplicate delivery</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-brand-border/50 bg-brand-black/80 py-4 px-6 text-center text-xs text-brand-slate font-mono">
+    AeroQueue Engine &copy; 2026 &bull; High-Throughput Fault-Tolerant Outbound Email Platform &bull; Node.js + NeonDB + BullMQ + Elasticsearch
+  </footer>
+
+  <!-- CLIENT-SIDE LOGIC -->
+  <script>
+    // Live Clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    let searchTimeout = null;
+
+    // Fetch and Populate Dashboard Data
+    async function fetchDashboardData() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      refreshIcon.classList.add('animate-spin');
+
+      try {
+        const res = await fetch('/api/metrics/overview');
+        if (!res.ok) throw new Error('Network response error');
+        const data = await res.json();
+
+        // 1. Update Metrics
+        document.getElementById('statSent').textContent = data.stats.totalSent;
+        document.getElementById('statQueued').textContent = data.stats.totalQueued;
+        document.getElementById('statProcessing').textContent = data.stats.totalProcessing;
+        document.getElementById('statFailed').textContent = data.stats.totalFailed;
+
+        // 2. Update Sender Dropdown & Quota Bar
+        if (data.senderQuotas && data.senderQuotas.length > 0) {
+          const select = document.getElementById('senderSelect');
+          const currentVal = select.value;
+          select.innerHTML = '';
+          data.senderQuotas.forEach(sender => {
+            const opt = document.createElement('option');
+            opt.value = sender.id;
+            opt.textContent = `${sender.name || 'Sender'} (${sender.email}) - ${sender.remaining} quota left`;
+            select.appendChild(opt);
+          });
+          if (currentVal) select.value = currentVal;
+
+          const primary = data.senderQuotas[0];
+          document.getElementById('quotaUsageText').textContent = `${primary.usedInWindow} / ${primary.hourlyQuota}`;
+          document.getElementById('quotaBar').style.width = `${Math.max(5, primary.percentUsed)}%`;
+        }
+
+        // 3. Render Activity Feed
+        const feed = document.getElementById('activityFeed');
+        if (!data.recentJobs || data.recentJobs.length === 0) {
+          feed.innerHTML = '<div class="text-center py-8 text-xs text-brand-slate font-mono">No outbound records yet. Use the dispatch console to send an email!</div>';
+        } else {
+          feed.innerHTML = data.recentJobs.map(job => {
+            let badgeClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+            let icon = '⏱';
+            if (job.status === 'SENT') {
+              badgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+              icon = '✔';
+            } else if (job.status === 'PROCESSING') {
+              badgeClass = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+              icon = '⚡';
+            } else if (job.status === 'FAILED') {
+              badgeClass = 'bg-red-500/10 text-red-400 border-red-500/20';
+              icon = '✖';
+            }
+
+            const timeStr = job.sentAt ? new Date(job.sentAt).toLocaleTimeString() : new Date(job.createdAt).toLocaleTimeString();
+
+            return `
+              <div class="bg-brand-black/70 hover:bg-brand-black p-3 rounded-xl border border-brand-border/40 flex items-center justify-between text-xs transition">
+                <div class="flex items-center gap-3">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${badgeClass}">
+                    ${icon} ${job.status}
+                  </span>
+                  <div>
+                    <div class="font-semibold text-white tracking-tight">${escapeHtml(job.recipient)}</div>
+                    <div class="text-[11px] text-slate-400 truncate max-w-[240px]">${escapeHtml(job.subject)}</div>
+                  </div>
+                </div>
+                <div class="text-right font-mono text-[11px] text-slate-400">
+                  <div>${timeStr}</div>
+                  <div class="text-[10px] text-slate-500">attempts: ${job.attempts}/${job.maxAttempts}</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+      } catch (err) {
+        console.error('Error fetching metrics:', err);
+      } finally {
+        setTimeout(() => refreshIcon.classList.remove('animate-spin'), 400);
+      }
+    }
+
+    // Handle Dispatch Form Submission
+    async function handleDispatch(e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submitBtn');
+      const btnText = document.getElementById('btnText');
+      const btnSpinner = document.getElementById('btnSpinner');
+      const toast = document.getElementById('toastBox');
+
+      const senderId = document.getElementById('senderSelect').value;
+      const recipient = document.getElementById('recipientInput').value;
+      const subject = document.getElementById('subjectInput').value;
+      const body = document.getElementById('bodyInput').value;
+      const delaySeconds = parseInt(document.getElementById('delaySelect').value, 10);
+      let idempotencyKey = document.getElementById('idempotencyInput').value.trim();
+
+      if (!idempotencyKey) {
+        idempotencyKey = 'web-' + Math.random().toString(36).substring(2, 9);
+      }
+
+      const scheduledAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
+
+      submitBtn.disabled = true;
+      btnText.textContent = 'Enqueuing...';
+      btnSpinner.classList.remove('hidden');
+
+      try {
+        const res = await fetch('/api/emails/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            senderId,
+            recipient,
+            subject,
+            body,
+            scheduledAt,
+            idempotencyKey
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          toast.className = 'mt-4 p-3 rounded-lg border bg-emerald-950/40 border-emerald-800/60 text-emerald-300 text-xs font-mono';
+          toast.innerHTML = `✅ <strong>Accepted!</strong> Job ID: <code>${data.emailJobId}</code> &bull; Status: ${data.status}`;
+          toast.classList.remove('hidden');
+
+          // Reset inputs
+          document.getElementById('recipientInput').value = '';
+          document.getElementById('subjectInput').value = '';
+          document.getElementById('idempotencyInput').value = '';
+          fetchDashboardData();
+        } else {
+          throw new Error(data.error || 'Failed to schedule email');
+        }
+      } catch (err) {
+        toast.className = 'mt-4 p-3 rounded-lg border bg-red-950/40 border-red-800/60 text-red-300 text-xs font-mono';
+        toast.innerHTML = `❌ <strong>Error:</strong> ${err.message}`;
+        toast.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        btnText.textContent = 'Schedule via BullMQ';
+        btnSpinner.classList.add('hidden');
+      }
+    }
+
+    // Debounced Elasticsearch Search
+    function handleSearch(val) {
+      clearTimeout(searchTimeout);
+      const query = val.trim();
+      const container = document.getElementById('searchResults');
+
+      if (!query) {
+        container.innerHTML = '<div class="text-slate-500 text-center py-6">Type a keyword to query Elasticsearch index in real-time</div>';
+        return;
+      }
+
+      searchTimeout = setTimeout(async () => {
+        try {
+          const start = performance.now();
+          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          const latency = Math.round(performance.now() - start);
+
+          if (!data.results || data.results.length === 0) {
+            container.innerHTML = `<div class="text-slate-500 text-center py-4">No matching records found in ${latency}ms</div>`;
+            return;
+          }
+
+          container.innerHTML = `
+            <div class="text-[10px] text-cyan-400 mb-1">Found ${data.total} results in ${latency}ms:</div>
+            ${data.results.map(r => `
+              <div class="bg-brand-black/90 p-2.5 rounded-lg border border-brand-border/40">
+                <div class="flex items-center justify-between text-[11px]">
+                  <strong class="text-white">${escapeHtml(r.subject || 'No Subject')}</strong>
+                  <span class="text-emerald-400">${r.status}</span>
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5">To: ${escapeHtml(r.recipient)}</div>
+              </div>
+            `).join('')}
+          `;
+        } catch (err) {
+          container.innerHTML = `<div class="text-red-400 text-center py-4">Search failed: ${err.message}</div>`;
+        }
+      }, 250);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Polling interval
+    fetchDashboardData();
+    setInterval(fetchDashboardData, 3000);
+  </script>
+
+</body>
+</html>

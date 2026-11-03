@@ -1,4 +1,4 @@
-# Hermes / ReachInbox — Distributed Outbound Email Engine
+# AeroQueue — Distributed Outbound Email Engine
 > A fault-tolerant, high-throughput email scheduling and delivery system built with Node.js, TypeScript, PostgreSQL, Redis, BullMQ, Elasticsearch, Docker, and Caddy.
 
 [![Node.js](https://img.shields.io/badge/Node.js-v24+-green.svg)](https://nodejs.org/)

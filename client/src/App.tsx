@@ -47,7 +47,7 @@ const App: React.FC = () => {
           <DispatchForm />
           <SearchPanel />
         </div>
-        <ActivityFeed />
+        <ActivityFeed />``
       </div>
     </div>
   );

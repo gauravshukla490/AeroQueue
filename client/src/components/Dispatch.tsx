@@ -254,7 +254,7 @@ const Dispatch: React.FC<Props> = ({ senders, sendersLoaded, onChanged }) => {
               <small>HTML is sent as written.</small>
             </label>
 
-            <fieldset className="radios" style={{ display: 'grid', gap: 'var(--space-xs)' }}>
+            <fieldset style={{ display: 'grid', gap: 'var(--space-xs)', border: 0, padding: 0, margin: 0, minWidth: 0 }}>
               <legend className="visually-hidden">When to send</legend>
               <div className="radios">
                 <label>

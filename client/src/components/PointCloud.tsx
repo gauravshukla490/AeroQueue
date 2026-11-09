@@ -100,6 +100,9 @@ function buildCloud(): Cloud {
     [foundPool[i], foundPool[j]] = [foundPool[j], foundPool[i]];
   }
 
+  // centre-out order: the first found points are always inside the frame
+  foundPool.sort((a, b) => a.x * a.x + a.z * a.z - (b.x * b.x + b.z * b.z));
+
   let minY = Infinity;
   let maxY = -Infinity;
   for (const p of pts) {
@@ -269,7 +272,7 @@ const PointCloud: React.FC<Props> = ({ found, latest }) => {
         const px = cx + x1 * scale * k * 1.9;
         const py = cyc - y1 * scale * k * 1.9;
         ctx!.beginPath();
-        ctx!.arc(px, py, 2 + k * 1.6, 0, Math.PI * 2);
+        ctx!.arc(px, py, 3 + k * 2, 0, Math.PI * 2);
         ctx!.fill();
         if (n === 0) first = { x: px, y: py };
       }

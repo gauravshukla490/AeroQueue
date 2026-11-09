@@ -1,3 +1,11 @@
+# Stage 0: Build the React frontend
+FROM node:20-bookworm-slim AS client
+WORKDIR /client
+COPY client/package*.json ./
+RUN npm install --no-audit --no-fund
+COPY client ./
+RUN npm run build
+
 # Stage 1: Build application
 FROM node:20-bookworm-slim AS builder
 
@@ -37,7 +45,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY public ./public
+# Frontend build, served by Express from client/dist
+COPY --from=client /client/dist ./client/dist
 
 EXPOSE 3000
 

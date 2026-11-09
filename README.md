@@ -448,3 +448,27 @@ GET /api/search?q=partnership&status=SENT
 
 - **How does the rate limiter work across multiple workers?**
   An atomic Redis Lua script performs eviction, counting, and insertion in one step, which prevents race conditions between concurrent workers.
+* * *
+
+## 🖥 Frontend & Production Deploy
+
+The dashboard lives in `client/` (React + Vite, Vantage theme). The production `Dockerfile` builds it and the Express API serves it at `/`, so one image runs everything.
+
+Local development (API on `:3000`):
+
+```
+cd client
+npm install
+npm run dev        # http://localhost:5173, /api is proxied to :3000
+# point at a remote API instead:  AEROQUEUE_API=https://your-host npm run dev
+```
+
+Deploy on a server with Docker Compose (after `git pull`):
+
+```
+docker compose build api
+docker compose run --rm --no-deps api npx --yes prisma@5.22.0 migrate deploy
+docker compose up -d --no-build
+```
+
+Build only `api` (the `api` and `worker` services share one image tag). Put Caddy or another TLS proxy in front, forwarding everything to `localhost:3000`.
